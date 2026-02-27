@@ -1,5 +1,6 @@
 const Subscription = require("../model/Subscription");
 const Plan = require("../model/Plan");
+const mongoose = require("mongoose");
 
 exports.subscribePlan = async (req, res) => {
   const plan = await Plan.findById(req.params.planId);
@@ -15,21 +16,32 @@ exports.subscribePlan = async (req, res) => {
   res.json(subscription);
 };
 
-
-
 exports.mockPayment = async (req, res) => {
   try {
-    const subscription = await Subscription.findById(req.params.subId)
-      .populate("plan");
+    const { subId } = req.params;
 
-    if (!subscription)
-      return res.status(404).json({ message: "Subscription not found" });
-
-    //  amount plan se aayega
-    if (subscription.plan.price !== req.body.amount) {
-      return res.status(400).json({ message: "Amount Add" });
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(subId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Subscription ID",
+      });
     }
 
+    // Find subscription and populate plan
+    const subscription = await Subscription.findById(subId).populate("plan");
+
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: "Subscription not found",
+      });
+    }
+
+    // Amount check not needed — backend plan price se hi le rahe
+    const amount = subscription.plan.price;
+
+    // Update subscription
     subscription.status = "active";
     subscription.paymentId = "MOCK_" + Date.now();
     subscription.startDate = new Date();
@@ -39,12 +51,16 @@ exports.mockPayment = async (req, res) => {
 
     await subscription.save();
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "Payment successful",
-      subscription,
+      message: `Payment successful for ₹${amount}`,
+      data: subscription,
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
